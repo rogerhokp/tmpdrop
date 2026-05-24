@@ -3,6 +3,8 @@
 Self-hosted ephemeral file host. A small Node service for sharing one-off
 files (screenshots, logs, etc.) without handing them to a public third party.
 
+![tmpdrop UI](docs/screenshots/home.png)
+
 ## Why
 
 Public file hosts retain your data on infrastructure you don't control and

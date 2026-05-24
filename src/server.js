@@ -21,11 +21,10 @@ const MAX_BYTES = Number(process.env.MAX_BYTES || 25 * 1024 * 1024); // 25MB
 const TTL_OPTIONS = { '1h': 3600, '24h': 86400 };
 const DEFAULT_TTL = '1h';
 
-// MIME allowlist — refuse anything else to limit abuse surface.
-const ALLOWED_MIME = new Set([
-  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
-  'application/pdf', 'text/plain', 'application/json', 'application/zip',
-  'video/mp4', 'video/webm',
+// Force-download these even though CSP sandbox would neuter them — browsers
+// give text/html special treatment and it's the one type worth quarantining.
+const FORCE_ATTACHMENT_MIME = new Set([
+  'text/html', 'application/xhtml+xml',
 ]);
 
 await mkdir(UPLOAD_DIR, { recursive: true });
@@ -58,12 +57,12 @@ function slug() {
 function hashIp(ip) {
   return createHash('sha256').update(String(ip)).digest('hex').slice(0, 16);
 }
-function contentDisposition(name) {
+function contentDisposition(name, disposition = 'inline') {
   const fallback = (name || 'file')
     .replace(/[^\x20-\x7e]+/g, '_')
     .replace(/["\\]/g, '_');
   const encoded = encodeURIComponent(name || 'file');
-  return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+  return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 function safeExt(name) {
   const e = extname(name || '').toLowerCase();
@@ -106,9 +105,6 @@ app.post('/upload', async (req, reply) => {
   if (!ttlSec) return reply.code(400).send({ error: 'ttl must be 1h or 24h' });
 
   const mime = part.mimetype || 'application/octet-stream';
-  if (!ALLOWED_MIME.has(mime)) {
-    return reply.code(415).send({ error: `mime not allowed: ${mime}` });
-  }
 
   const chunks = [];
   let size = 0;
@@ -147,7 +143,7 @@ app.get('/f/:slug', async (req, reply) => {
   reply
     .header('Content-Type', row.mime)
     .header('Content-Length', row.size)
-    .header('Content-Disposition', contentDisposition(row.filename))
+    .header('Content-Disposition', contentDisposition(row.filename, FORCE_ATTACHMENT_MIME.has(row.mime) ? 'attachment' : 'inline'))
     .header('Cache-Control', 'private, max-age=300')
     .header('X-Content-Type-Options', 'nosniff')
     .header('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");
@@ -406,12 +402,13 @@ sandbox so a malicious upload can't run in your browser.
   <tr><td><code>ttl</code></td><td>no</td><td><code>1h</code> (default) or <code>24h</code>. Anything else: <code>400</code>.</td></tr>
 </table>
 
-<h2>allowed mime types</h2>
-<p>HTML and JS are blocked on purpose — uploaded files can't execute in the browser.</p>
-<pre class="code">image/png      image/jpeg     image/gif      image/webp
-image/svg+xml  image/bmp      application/pdf
-text/plain     application/json   application/zip
-video/mp4      video/webm</pre>
+<h2>file types</h2>
+<p>Any file type is accepted. Size is the only gate — see <b>${maxMb} MB</b> above.</p>
+<p>Uploads are served with a strict <code>Content-Security-Policy: sandbox</code>
+plus <code>X-Content-Type-Options: nosniff</code>, so nothing in an uploaded file
+can execute in your browser. <code>text/html</code> and
+<code>application/xhtml+xml</code> are additionally forced to download rather
+than render inline.</p>
 
 <h2>status codes</h2>
 <table class="routes">
@@ -420,7 +417,6 @@ video/mp4      video/webm</pre>
   <tr><td><code>400</code></td><td>no file, or bad <code>ttl</code></td></tr>
   <tr><td><code>410</code></td><td>file expired</td></tr>
   <tr><td><code>413</code></td><td>over size limit</td></tr>
-  <tr><td><code>415</code></td><td>mime type not allowed</td></tr>
   <tr><td><code>429</code></td><td>rate limited (30 req / min per IP)</td></tr>
 </table>
 

@@ -10,9 +10,10 @@ expose it via predictable URLs that get scraped. This service runs on your
 own box with:
 
 - Unguessable URLs (12-char base64url slug = 72 bits of entropy).
-- Strict MIME allowlist (no HTML/JS — uploaded files can't run in the browser).
+- Any file type accepted — size is the only gate.
 - `Content-Security-Policy: sandbox` + `X-Content-Type-Options: nosniff` on
-  every download to neuter stored-XSS attempts.
+  every download to neuter stored-XSS attempts. `text/html` is additionally
+  forced to download rather than render.
 - Per-upload TTL (1h or 24h), enforced by a reaper that deletes both the file
   and the DB row.
 - Per-IP rate limit (30 req/min).
@@ -52,10 +53,12 @@ curl -F file=@screenshot.png -F ttl=1h https://files.example.com/upload
 
 `ttl` accepts `1h` or `24h` (default `1h`).
 
-## Allowed MIME types
+## File types
 
-png, jpeg, gif, webp, svg, bmp, pdf, txt, json, zip, mp4, webm. Edit
-`ALLOWED_MIME` in `src/server.js` to change.
+All MIME types are accepted. The `Content-Security-Policy: sandbox` +
+`nosniff` headers prevent uploaded files from executing in the browser.
+`text/html` and `application/xhtml+xml` are served as attachments (download)
+rather than rendered inline — see `FORCE_ATTACHMENT_MIME` in `src/server.js`.
 
 ## Notes
 

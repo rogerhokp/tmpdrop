@@ -58,6 +58,13 @@ function slug() {
 function hashIp(ip) {
   return createHash('sha256').update(String(ip)).digest('hex').slice(0, 16);
 }
+function contentDisposition(name) {
+  const fallback = (name || 'file')
+    .replace(/[^\x20-\x7e]+/g, '_')
+    .replace(/["\\]/g, '_');
+  const encoded = encodeURIComponent(name || 'file');
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
 function safeExt(name) {
   const e = extname(name || '').toLowerCase();
   return /^\.[a-z0-9]{1,6}$/.test(e) ? e : '';
@@ -140,7 +147,7 @@ app.get('/f/:slug', async (req, reply) => {
   reply
     .header('Content-Type', row.mime)
     .header('Content-Length', row.size)
-    .header('Content-Disposition', `inline; filename="${row.filename.replace(/"/g, '')}"`)
+    .header('Content-Disposition', contentDisposition(row.filename))
     .header('Cache-Control', 'private, max-age=300')
     .header('X-Content-Type-Options', 'nosniff')
     .header('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");

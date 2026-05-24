@@ -1,15 +1,13 @@
-# tmpfiles-selfhost
+# tmpdrop
 
-Self-hosted ephemeral file host. Drop-in replacement for tmpfiles.org for
-sharing Claude Code screenshots and other one-off files without exposing them
-to a public third party.
+Self-hosted ephemeral file host. A small Node service for sharing one-off
+files (screenshots, logs, etc.) without handing them to a public third party.
 
 ## Why
 
-`tmpfiles.org` is a public host: any file you upload is reachable by anyone
-with the URL, retained on infrastructure you don't control, and indexed by
-whoever scrapes the predictable URL space. This service runs on your own box
-with:
+Public file hosts retain your data on infrastructure you don't control and
+expose it via predictable URLs that get scraped. This service runs on your
+own box with:
 
 - Unguessable URLs (12-char base64url slug = 72 bits of entropy).
 - Strict MIME allowlist (no HTML/JS — uploaded files can't run in the browser).
@@ -23,9 +21,19 @@ with:
 ## Run
 
 ```bash
-cd tmpfiles-selfhost
-PUBLIC_BASE=https://files.example.com docker compose up -d --build
+cd tmpdrop
+cp .env.example .env   # then edit
+docker compose up -d --build
 ```
+
+`docker compose` auto-loads `.env`. Useful keys:
+
+| var | default | purpose |
+| --- | --- | --- |
+| `PUBLIC_BASE` | `http://localhost:3000` | URL printed in upload responses |
+| `PORT` | `3000` | host port |
+| `MAX_BYTES` | `26214400` | max upload size in bytes |
+| `STORAGE_DIR` | `./data` | host dir holding `uploads/` and `db/` |
 
 Put it behind Caddy/Cloudflare Tunnel for TLS. Example Caddyfile:
 

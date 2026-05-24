@@ -85,20 +85,7 @@ await app.register(multipart, {
 });
 
 app.get('/', async (_, reply) => {
-  reply.type('text/html').send(`<!doctype html>
-<meta charset="utf-8">
-<title>tmpfiles selfhost</title>
-<style>body{font:14px system-ui;max-width:560px;margin:4em auto;padding:0 1em}</style>
-<h1>tmpfiles selfhost</h1>
-<form method="post" action="/upload" enctype="multipart/form-data">
-  <p><input type="file" name="file" required></p>
-  <p>TTL:
-    <label><input type="radio" name="ttl" value="1h" checked> 1 hour</label>
-    <label><input type="radio" name="ttl" value="24h"> 24 hours</label>
-  </p>
-  <p><button>Upload</button></p>
-</form>
-<p>API: <code>curl -F file=@thing.png -F ttl=1h ${PUBLIC_BASE}/upload</code></p>`);
+  reply.type('text/html; charset=utf-8').send(renderIndex());
 });
 
 app.get('/healthz', async () => ({ ok: true }));
@@ -159,6 +146,313 @@ app.get('/f/:slug', async (req, reply) => {
     .header('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");
   return reply.send(createReadStream(path));
 });
+
+function renderIndex() {
+  const maxMb = (MAX_BYTES / 1024 / 1024).toFixed(0);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tmpdrop // ephemeral file drop</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #0a0f0a;
+    --fg: #33ff66;
+    --dim: #1f6b2e;
+    --hot: #aaffaa;
+    --warn: #ffcc33;
+    --err: #ff5577;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--fg); margin: 0; padding: 0; }
+  body {
+    font-family: "Consolas", "Menlo", "DejaVu Sans Mono", "Courier New", monospace;
+    font-size: 15px;
+    line-height: 1.45;
+    min-height: 100vh;
+    text-shadow: 0 0 1px rgba(51,255,102,.6), 0 0 6px rgba(51,255,102,.15);
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,.18) 3px,
+      rgba(0,0,0,.18) 3px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 2em 1.5em 4em; }
+  pre.banner {
+    color: var(--hot);
+    font-size: 11px;
+    line-height: 1.05;
+    margin: 0 0 1em;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .meta { color: var(--dim); margin-bottom: 2em; }
+  .meta b { color: var(--fg); }
+  h2 {
+    color: var(--hot);
+    font-size: 15px;
+    font-weight: normal;
+    margin: 2.5em 0 .8em;
+    border-bottom: 1px dashed var(--dim);
+    padding-bottom: .3em;
+  }
+  h2::before { content: ">> "; color: var(--dim); }
+  p, li { margin: .4em 0; }
+  a { color: var(--hot); text-decoration: underline; }
+  a:hover { background: var(--fg); color: var(--bg); text-decoration: none; }
+  code, pre.code {
+    background: rgba(51,255,102,.06);
+    border: 1px solid var(--dim);
+    color: var(--hot);
+    padding: 1px 5px;
+    font-family: inherit;
+  }
+  pre.code {
+    padding: .8em 1em;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .blink { animation: blink 1.1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+
+  form#u {
+    border: 1px solid var(--fg);
+    padding: 1em 1.2em;
+    margin: 1em 0;
+    position: relative;
+  }
+  form#u .label { color: var(--dim); margin-right: .6em; }
+  form#u label.radio { margin-right: 1.2em; cursor: pointer; }
+  form#u input[type=radio] { accent-color: var(--fg); }
+  .drop {
+    border: 1px dashed var(--dim);
+    padding: 1.8em 1em;
+    text-align: center;
+    color: var(--dim);
+    cursor: pointer;
+    margin: .6em 0 1em;
+    transition: all .12s;
+  }
+  .drop.hover { border-color: var(--fg); color: var(--fg); background: rgba(51,255,102,.05); }
+  .drop b { color: var(--hot); }
+  input[type=file] { display: none; }
+  button {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--fg);
+    font: inherit;
+    padding: .4em 1.2em;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--fg); color: var(--bg); }
+  button:disabled { color: var(--dim); border-color: var(--dim); cursor: not-allowed; }
+
+  #out {
+    margin-top: 1.2em;
+    border-top: 1px dashed var(--dim);
+    padding-top: 1em;
+    min-height: 1em;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #out .ok { color: var(--hot); }
+  #out .err { color: var(--err); }
+  #out .url { color: var(--warn); }
+  #out .url a { color: var(--warn); }
+
+  table.routes { border-collapse: collapse; width: 100%; margin: .5em 0; }
+  table.routes th, table.routes td {
+    border: 1px solid var(--dim);
+    padding: .4em .7em;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.routes th { color: var(--hot); font-weight: normal; }
+  footer { margin-top: 3em; color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+<pre class="banner">
+ _____ __  __ ____  ____  ____   ___  ____
+|_   _|  \\/  |  _ \\|  _ \\|  _ \\ / _ \\|  _ \\
+  | | | |\\/| | |_) | | | | |_) | | | | |_) |
+  | | | |  | |  __/| |_| |  _ <| |_| |  __/
+  |_| |_|  |_|_|   |____/|_| \\_\\\\___/|_|
+   ephemeral file drop // self-hosted // v1.0
+</pre>
+
+<div class="meta">
+[ session ] <b>guest@tmpdrop</b> &middot;
+[ max ] <b>${maxMb} MB</b> &middot;
+[ ttl ] <b>1h / 24h</b> &middot;
+[ status ] <b style="color:var(--hot)">ONLINE</b><span class="blink">_</span>
+</div>
+
+<p>
+Upload a file. Get a link. The link dies on schedule. No accounts, no tracking,
+no analytics, no third party. Files served with a strict <code>Content-Security-Policy</code>
+sandbox so a malicious upload can't run in your browser.
+</p>
+
+<h2>drop a file</h2>
+
+<form id="u" enctype="multipart/form-data">
+  <label class="drop" id="drop" for="file">
+    <div>// drag &amp; drop a file here</div>
+    <div>or <b>click to browse</b></div>
+    <div id="picked" style="margin-top:.6em;color:var(--hot)"></div>
+  </label>
+  <input id="file" type="file" name="file" required>
+
+  <div style="margin:.6em 0">
+    <span class="label">[ttl]</span>
+    <label class="radio"><input type="radio" name="ttl" value="1h" checked> 1 hour</label>
+    <label class="radio"><input type="radio" name="ttl" value="24h"> 24 hours</label>
+  </div>
+
+  <button id="go" type="submit">&gt; transmit</button>
+  <div id="out"></div>
+</form>
+
+<h2>api</h2>
+
+<p>One endpoint. Multipart form. Public. No auth.</p>
+
+<table class="routes">
+  <tr><th>method</th><th>path</th><th>purpose</th></tr>
+  <tr><td>POST</td><td><code>/upload</code></td><td>upload a file, get a URL + slug</td></tr>
+  <tr><td>GET</td><td><code>/f/:slug</code></td><td>fetch a file (returns 410 once expired)</td></tr>
+  <tr><td>GET</td><td><code>/healthz</code></td><td>liveness probe</td></tr>
+</table>
+
+<h2>upload — curl</h2>
+<pre class="code">curl -F file=@screenshot.png -F ttl=1h ${PUBLIC_BASE}/upload</pre>
+
+<p>Response (JSON):</p>
+<pre class="code">{
+  "url":        "${PUBLIC_BASE}/f/AbCdEfGhIjKl.png",
+  "slug":       "AbCdEfGhIjKl",
+  "expires_at": 1717000000,
+  "size":       18234,
+  "mime":       "image/png"
+}</pre>
+
+<h2>parameters</h2>
+<table class="routes">
+  <tr><th>field</th><th>required</th><th>notes</th></tr>
+  <tr><td><code>file</code></td><td>yes</td><td>multipart file part. Max <b>${maxMb} MB</b>.</td></tr>
+  <tr><td><code>ttl</code></td><td>no</td><td><code>1h</code> (default) or <code>24h</code>. Anything else: <code>400</code>.</td></tr>
+</table>
+
+<h2>allowed mime types</h2>
+<p>HTML and JS are blocked on purpose — uploaded files can't execute in the browser.</p>
+<pre class="code">image/png      image/jpeg     image/gif      image/webp
+image/svg+xml  image/bmp      application/pdf
+text/plain     application/json   application/zip
+video/mp4      video/webm</pre>
+
+<h2>status codes</h2>
+<table class="routes">
+  <tr><th>code</th><th>meaning</th></tr>
+  <tr><td><code>200</code></td><td>ok</td></tr>
+  <tr><td><code>400</code></td><td>no file, or bad <code>ttl</code></td></tr>
+  <tr><td><code>410</code></td><td>file expired</td></tr>
+  <tr><td><code>413</code></td><td>over size limit</td></tr>
+  <tr><td><code>415</code></td><td>mime type not allowed</td></tr>
+  <tr><td><code>429</code></td><td>rate limited (30 req / min per IP)</td></tr>
+</table>
+
+<h2>retention &amp; privacy</h2>
+<ul>
+  <li>Files are deleted from disk + DB the minute they expire. There is no soft-delete.</li>
+  <li>URL slugs are 12 chars of base64url (~72 bits of entropy). Not guessable.</li>
+  <li>Uploader IPs are stored as a truncated SHA-256, never raw.</li>
+  <li>No cookies. No analytics. No third-party requests on this page.</li>
+</ul>
+
+<footer>
+[tmpdrop] open source &middot;
+<a href="https://github.com/rogerhokp/tmpdrop">github.com/rogerhokp/tmpdrop</a>
+&middot; MIT
+</footer>
+</main>
+
+<script>
+(() => {
+  const form = document.getElementById('u');
+  const file = document.getElementById('file');
+  const drop = document.getElementById('drop');
+  const picked = document.getElementById('picked');
+  const out = document.getElementById('out');
+  const go = document.getElementById('go');
+
+  file.addEventListener('change', () => {
+    if (file.files[0]) picked.textContent = '// ' + file.files[0].name + ' (' + fmt(file.files[0].size) + ')';
+  });
+  ['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', ev => {
+    if (ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+      file.files = ev.dataTransfer.files;
+      picked.textContent = '// ' + file.files[0].name + ' (' + fmt(file.files[0].size) + ')';
+    }
+  });
+
+  function fmt(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/1024/1024).toFixed(2) + ' MB';
+  }
+
+  form.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    if (!file.files[0]) { out.innerHTML = '<span class="err">[err] no file selected</span>'; return; }
+    const fd = new FormData(form);
+    go.disabled = true;
+    out.innerHTML = '<span style="color:var(--dim)">[..] transmitting ' + file.files[0].name + ' ...</span>';
+    try {
+      const r = await fetch('/upload', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!r.ok) {
+        out.innerHTML = '<span class="err">[err ' + r.status + '] ' + (j.error || 'failed') + '</span>';
+      } else {
+        const exp = new Date(j.expires_at * 1000).toLocaleString();
+        out.innerHTML =
+          '<span class="ok">[ok] uploaded</span>\\n' +
+          '  url     <span class="url"><a href="' + j.url + '" target="_blank" rel="noopener">' + j.url + '</a></span>\\n' +
+          '  slug    ' + j.slug + '\\n' +
+          '  size    ' + fmt(j.size) + '\\n' +
+          '  mime    ' + j.mime + '\\n' +
+          '  expires ' + exp;
+      }
+    } catch (e) {
+      out.innerHTML = '<span class="err">[err] ' + e.message + '</span>';
+    } finally {
+      go.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>`;
+}
 
 setInterval(() => { reapExpired().catch((e) => app.log.error(e)); }, 60_000);
 await reapExpired();

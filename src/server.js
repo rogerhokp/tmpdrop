@@ -248,15 +248,52 @@ function renderIndex() {
   form#u label.radio { margin-right: 1.2em; cursor: pointer; }
   form#u input[type=radio] { accent-color: var(--fg); }
   .drop {
-    border: 1px dashed var(--dim);
-    padding: 1.8em 1em;
+    position: relative;
+    display: block;
+    border: 2px dashed var(--fg);
+    padding: 2.6em 1em 2.2em;
     text-align: center;
-    color: var(--dim);
+    color: var(--fg);
     cursor: pointer;
-    margin: .6em 0 1em;
+    margin: .6em 0 1.2em;
+    background:
+      repeating-linear-gradient(45deg,
+        rgba(51,255,102,.04) 0 12px,
+        rgba(51,255,102,.08) 12px 24px);
     transition: all .12s;
+    box-shadow: inset 0 0 0 4px var(--bg), 0 0 0 1px var(--fg);
   }
-  .drop.hover { border-color: var(--fg); color: var(--fg); background: rgba(51,255,102,.05); }
+  .drop::before {
+    content: "[ DROP ZONE ]";
+    position: absolute;
+    top: -.7em;
+    left: 1.2em;
+    background: var(--bg);
+    color: var(--hot);
+    padding: 0 .6em;
+    font-size: 12px;
+    letter-spacing: .15em;
+  }
+  .drop .arrow {
+    color: var(--hot);
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: .35em;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: .35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(3px); } }
+  .drop .big {
+    font-size: 16px;
+    color: var(--hot);
+    margin-bottom: .35em;
+    letter-spacing: .05em;
+  }
+  .drop .sub { color: var(--dim); font-size: 13px; }
+  .drop .sub b { color: var(--fg); text-decoration: underline; }
+  .drop.hover {
+    background: rgba(51,255,102,.18);
+    box-shadow: inset 0 0 0 4px var(--bg), 0 0 0 1px var(--fg), 0 0 18px rgba(51,255,102,.4);
+  }
   .drop b { color: var(--hot); }
   input[type=file] { display: none; }
   button {
@@ -322,9 +359,10 @@ sandbox so a malicious upload can't run in your browser.
 
 <form id="u" enctype="multipart/form-data">
   <label class="drop" id="drop" for="file">
-    <div>// drag &amp; drop a file here</div>
-    <div>or <b>click to browse</b></div>
-    <div id="picked" style="margin-top:.6em;color:var(--hot)"></div>
+    <div class="arrow">&#x25BC;</div>
+    <div class="big">DRAG &amp; DROP A FILE HERE</div>
+    <div class="sub">&mdash; or <b>click anywhere in this box</b> to browse &mdash;</div>
+    <div id="picked" style="margin-top:.9em;color:var(--hot)"></div>
   </label>
   <input id="file" type="file" name="file" required>
 

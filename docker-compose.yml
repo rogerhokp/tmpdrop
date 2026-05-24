@@ -1,0 +1,12 @@
+services:
+  tmpfiles:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PUBLIC_BASE: ${PUBLIC_BASE:-http://localhost:3000}
+      MAX_BYTES: ${MAX_BYTES:-26214400}
+    volumes:
+      - ./data/uploads:/data/uploads
+      - ./data/db:/data/db

@@ -23,6 +23,14 @@ own box with:
 
 ## Run
 
+Quickest path — pre-built image from GHCR:
+
+```bash
+docker run -d -p 3000:3000 -v $(pwd)/data:/data ghcr.io/rogerhokp/tmpdrop:latest
+```
+
+Or build from source with the included compose file:
+
 ```bash
 cd tmpdrop
 cp .env.example .env   # then edit
